@@ -29,7 +29,7 @@ defaults for Mode S multilateration clients.
 Quick links:
 
 - Docker Hub listing: [blackoutsecure/mlat-client](https://hub.docker.com/r/blackoutsecure/mlat-client)
-- Balena block listing: [mlat-client block on Balena Hub](https://hub.balena.io/blocks/2353537/mlat-client)
+- Balena block listing: [mlat-client block on Balena Hub](https://hub.balena.io/blocks/2353923/mlat-client)
 - GitHub repository: [blackoutsecure/docker-mlat-client](https://github.com/blackoutsecure/docker-mlat-client)
 - Upstream application: [wiedehopf/mlat-client](https://github.com/wiedehopf/mlat-client)
 
@@ -445,7 +445,7 @@ Container patterns: [LinuxServer.io](https://linuxserver.io/)
 | Resource | Link |
 | --- | --- |
 | Docker Hub | [blackoutsecure/mlat-client](https://hub.docker.com/r/blackoutsecure/mlat-client) |
-| Balena Hub | [mlat-client block](https://hub.balena.io/blocks/2353537/mlat-client) |
+| Balena Hub | [mlat-client block](https://hub.balena.io/blocks/2353923/mlat-client) |
 | GitHub Issues | [Report bugs or request features](https://github.com/blackoutsecure/docker-mlat-client/issues) |
 | GitHub Releases | [Download releases](https://github.com/blackoutsecure/docker-mlat-client/releases) |
 
