@@ -1,0 +1,52 @@
+name: mlat-client
+description: >-
+  LinuxServer.io–style containerized client forwarding Mode S messages
+  for aircraft multilateration.
+
+post-provisioning: >-
+  ## Usage instructions
+
+
+  Include this snippet in your docker-compose.yml file under 'services':
+
+    ```
+    mlat-client:
+      image: blackoutsecure/mlat-client:latest
+      restart: unless-stopped
+      environment:
+        - TZ=Etc/UTC
+        - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
+        - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
+        - MLAT_CLIENT_LAT=51.5
+        - MLAT_CLIENT_LON=-0.1
+        - MLAT_CLIENT_ALT=50m
+        - MLAT_CLIENT_USER_ID=myuser
+      volumes:
+        - '/path/to/mlat-client/config:/config'
+    ```
+
+  Repository: https://github.com/blackoutsecure/docker-mlat-client
+  Upstream application: https://github.com/wiedehopf/mlat-client
+
+version: v0.4.2
+type: sw.block
+assets:
+  repository:
+    type: blob.asset
+    data:
+      url: 'https://github.com/blackoutsecure/docker-mlat-client'
+  logo:
+    type: blob.asset
+    data:
+      url: 'https://raw.githubusercontent.com/blackoutsecure/docker-mlat-client/main/logo.png'
+data:
+  defaultDeviceType: raspberrypi3
+  supportedDeviceTypes:
+    - raspberrypi3
+    - raspberrypi3-64
+    - raspberrypi4
+    - raspberrypi4-64
+    - raspberrypi400
+    - raspberrypi400-64
+    - intel-nuc
+    - genericx86-64-ext

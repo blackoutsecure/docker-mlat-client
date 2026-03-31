@@ -1,0 +1,77 @@
+# project information
+project_name: mlat-client
+project_url: "https://github.com/wiedehopf/mlat-client"
+project_blurb: "[{{ project_name }}]({{ project_url }}) is a Mode S multilateration client. LinuxServer.io–style containerized client forwarding Mode S messages for aircraft multilateration. Sponsored and maintained by Blackout Secure (https://blackoutsecure.com)."
+project_lsio_github_repo_url: "https://github.com/blackoutsecure/docker-mlat-client"
+project_categories: "Amateur Radio,Aviation,Networking,ADS-B"
+
+# supported architectures
+available_architectures:
+  - {arch: "{{ arch_x86_64 }}", tag: "amd64-latest"}
+  - {arch: "{{ arch_arm64 }}", tag: "arm64v8-latest"}
+
+# common parameters
+common_param_env_vars_enabled: true
+param_container_name: "{{ project_name }}"
+param_usage_include_vols: true
+param_volumes:
+  - {vol_path: "/config", vol_host_path: "/path/to/mlat-client/config", desc: "Configuration and persistent data"}
+
+param_usage_include_net: false
+param_usage_include_env: true
+param_env_vars:
+  - {env_var: "TZ", env_value: "Etc/UTC", desc: "Timezone (see TZ database)"}
+  - {env_var: "MLAT_CLIENT_INPUT_CONNECT", env_value: "readsb:30005", desc: "Beast data source (host:port)"}
+  - {env_var: "MLAT_CLIENT_SERVER", env_value: "feed.adsbexchange.com:31090", desc: "Multilateration server (host:port)"}
+  - {env_var: "MLAT_CLIENT_LAT", env_value: "51.5", desc: "Receiver latitude in decimal degrees (required)"}
+  - {env_var: "MLAT_CLIENT_LON", env_value: "-0.1", desc: "Receiver longitude in decimal degrees (required)"}
+  - {env_var: "MLAT_CLIENT_ALT", env_value: "50m", desc: "Receiver altitude with unit suffix m or ft (required)"}
+  - {env_var: "MLAT_CLIENT_USER_ID", env_value: "myuser", desc: "User identifier sent to the MLAT server (required)"}
+
+# optional env variables
+opt_param_usage_include_env: true
+opt_param_env_vars:
+  - {env_var: "MLAT_CLIENT_USER", env_value: "root", desc: "Runtime user. Root is default."}
+  - {env_var: "MLAT_CLIENT_RESULTS", env_value: "beast,connect,readsb:30104", desc: "Results output destination(s)"}
+  - {env_var: "MLAT_CLIENT_UUID", env_value: "", desc: "UUID sent to the server"}
+  - {env_var: "MLAT_CLIENT_UUID_FILE", env_value: "", desc: "Path to UUID file"}
+  - {env_var: "MLAT_CLIENT_STATS_JSON", env_value: "", desc: "Path for stats JSON output"}
+  - {env_var: "MLAT_CLIENT_PRIVACY", env_value: "false", desc: "Hide receiver location on coverage maps"}
+  - {env_var: "MLAT_CLIENT_NO_UDP", env_value: "false", desc: "Disable UDP transport for sync/mlat messages"}
+  - {env_var: "MLAT_CLIENT_ARGS", env_value: "", desc: "Raw arguments passed directly to mlat-client (overrides individual env vars)"}
+  - {env_var: "PUID", env_value: "", desc: "Optional: User ID for non-root mode (defaults to 911)"}
+  - {env_var: "PGID", env_value: "", desc: "Optional: Group ID for non-root mode (defaults to 911)"}
+
+# application setup block
+app_setup_block_enabled: true
+app_setup_block: |
+  The container runs mlat-client, a Mode S multilateration client that connects
+  to a Beast-format data source (like readsb or dump1090) and forwards messages
+  to a multilateration server for position resolution.
+
+  **Required Configuration**: You must set `MLAT_CLIENT_LAT`, `MLAT_CLIENT_LON`,
+  `MLAT_CLIENT_ALT`, and `MLAT_CLIENT_USER_ID` for the client to start.
+
+  **Input**: Connect to a Beast protocol source using `MLAT_CLIENT_INPUT_CONNECT`.
+  The default is `readsb:30005` (Beast output port).
+
+  **Server**: Set `MLAT_CLIENT_SERVER` to the multilateration server address.
+  The default is `feed.adsbexchange.com:31090`.
+
+  **Results**: Use `MLAT_CLIENT_RESULTS` to specify where resolved positions
+  should be output. Common formats include Beast, SBS/BaseStation.
+
+  For all available options, see the [mlat-client documentation](https://github.com/wiedehopf/mlat-client).
+
+# hardware acceleration
+readme_hwaccel: false
+
+# read-only support
+readonly_supported: true
+readonly_message: |
+  Read-only operation is supported. Mount temp directories to tmpfs.
+
+# non-root support
+nonroot_supported: true
+nonroot_message: |
+  Non-root operation is supported via `MLAT_CLIENT_USER`.

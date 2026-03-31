@@ -1,0 +1,180 @@
+#!/usr/bin/with-contenv bash
+
+set -euo pipefail
+
+mlat_client_user=${MLAT_CLIENT_USER:-root}
+build_metadata_path=/usr/local/share/mlat-client/build-metadata.env
+
+# Import build metadata captured from upstream mlat-client so these values are
+# available to the service process in production.
+if [[ -r "${build_metadata_path}" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "${build_metadata_path}"
+    set +a
+fi
+
+if [[ "${mlat_client_user}" != "root" ]]; then
+    if [[ "${mlat_client_user}" == "abc" && -z ${PUID:-} ]]; then
+        export PUID=911
+    fi
+    if [[ "${mlat_client_user}" == "abc" && -z ${PGID:-} ]]; then
+        export PGID=911
+    fi
+fi
+
+timestamp_utc() {
+    date -u '+%Y-%m-%d %H:%M:%S UTC'
+}
+
+print_kv() {
+    local key=$1
+    local value=$2
+    printf '[%s] %-20s %s\n' "$(timestamp_utc)" "${key}:" "${value}"
+}
+
+# Build effective mlat-client arguments
+mlat_client_args=()
+mlat_client_args_source="default"
+
+if [[ -n ${MLAT_CLIENT_ARGS:-} ]]; then
+    mlat_client_args_source="env"
+    read -r -a mlat_client_args <<< "${MLAT_CLIENT_ARGS}"
+fi
+
+# Append required arguments from individual env vars if not already in MLAT_CLIENT_ARGS
+has_mlat_opt() {
+    local opt=$1
+    local token
+    for token in "${mlat_client_args[@]}"; do
+        if [[ ${token} == "${opt}" || ${token} == "${opt}="* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# --input-connect (Beast data source)
+if [[ -n ${MLAT_CLIENT_INPUT_CONNECT:-} ]] && ! has_mlat_opt "--input-connect"; then
+    mlat_client_args+=(--input-connect "${MLAT_CLIENT_INPUT_CONNECT}")
+fi
+
+# --server (multilateration server)
+if [[ -n ${MLAT_CLIENT_SERVER:-} ]] && ! has_mlat_opt "--server"; then
+    mlat_client_args+=(--server "${MLAT_CLIENT_SERVER}")
+fi
+
+# --lat (receiver latitude)
+if [[ -n ${MLAT_CLIENT_LAT:-} ]] && ! has_mlat_opt "--lat"; then
+    mlat_client_args+=(--lat "${MLAT_CLIENT_LAT}")
+fi
+
+# --lon (receiver longitude)
+if [[ -n ${MLAT_CLIENT_LON:-} ]] && ! has_mlat_opt "--lon"; then
+    mlat_client_args+=(--lon "${MLAT_CLIENT_LON}")
+fi
+
+# --alt (receiver altitude)
+if [[ -n ${MLAT_CLIENT_ALT:-} ]] && ! has_mlat_opt "--alt"; then
+    mlat_client_args+=(--alt "${MLAT_CLIENT_ALT}")
+fi
+
+# --user (user identifier)
+if [[ -n ${MLAT_CLIENT_USER_ID:-} ]] && ! has_mlat_opt "--user"; then
+    mlat_client_args+=(--user "${MLAT_CLIENT_USER_ID}")
+fi
+
+# --results (output mode/destination)
+if [[ -n ${MLAT_CLIENT_RESULTS:-} ]] && ! has_mlat_opt "--results"; then
+    mlat_client_args+=(--results "${MLAT_CLIENT_RESULTS}")
+fi
+
+# --uuid-file
+if [[ -n ${MLAT_CLIENT_UUID_FILE:-} ]] && ! has_mlat_opt "--uuid-file"; then
+    mlat_client_args+=(--uuid-file "${MLAT_CLIENT_UUID_FILE}")
+fi
+
+# --uuid
+if [[ -n ${MLAT_CLIENT_UUID:-} ]] && ! has_mlat_opt "--uuid"; then
+    mlat_client_args+=(--uuid "${MLAT_CLIENT_UUID}")
+fi
+
+# --stats-json
+if [[ -n ${MLAT_CLIENT_STATS_JSON:-} ]] && ! has_mlat_opt "--stats-json"; then
+    mlat_client_args+=(--stats-json "${MLAT_CLIENT_STATS_JSON}")
+fi
+
+# --no-udp
+if [[ ${MLAT_CLIENT_NO_UDP:-false} == "true" ]] && ! has_mlat_opt "--no-udp"; then
+    mlat_client_args+=(--no-udp)
+fi
+
+# --privacy
+if [[ ${MLAT_CLIENT_PRIVACY:-false} == "true" ]] && ! has_mlat_opt "--privacy"; then
+    mlat_client_args+=(--privacy)
+fi
+
+# --log-timestamps
+if [[ ${MLAT_CLIENT_LOG_TIMESTAMPS:-true} == "true" ]] && ! has_mlat_opt "--log-timestamps"; then
+    mlat_client_args+=(--log-timestamps)
+fi
+
+mlat_client_args_rendered=$(printf '%q ' "${mlat_client_args[@]}")
+mlat_client_args_rendered=${mlat_client_args_rendered% }
+
+build_version=${VERSION:-unknown}
+if [[ -r /build_version ]]; then
+    build_version=$(< /build_version)
+fi
+
+echo "[$(timestamp_utc)] mlat-client container startup configuration"
+print_kv "build_version" "${build_version}"
+print_kv "VERSION" "${VERSION:-unknown}"
+print_kv "BUILD_DATE" "${BUILD_DATE:-unknown}"
+print_kv "VCS_REF" "${VCS_REF:-unknown}"
+print_kv "PUID" "${PUID:-unset}"
+print_kv "PGID" "${PGID:-unset}"
+print_kv "UMASK" "${UMASK:-unset}"
+print_kv "TZ" "${TZ:-unset}"
+print_kv "MLAT_CLIENT_USER" "${mlat_client_user}"
+print_kv "MLAT_CLIENT_ARGS(raw)" "${MLAT_CLIENT_ARGS:-unset}"
+print_kv "MLAT_CLIENT_ARGS(src)" "${mlat_client_args_source}"
+print_kv "MLAT_CLIENT_INPUT" "${MLAT_CLIENT_INPUT_CONNECT:-unset}"
+print_kv "MLAT_CLIENT_SERVER" "${MLAT_CLIENT_SERVER:-unset}"
+print_kv "MLAT_CLIENT_LAT" "${MLAT_CLIENT_LAT:-unset}"
+print_kv "MLAT_CLIENT_LON" "${MLAT_CLIENT_LON:-unset}"
+print_kv "MLAT_CLIENT_ALT" "${MLAT_CLIENT_ALT:-unset}"
+print_kv "MLAT_CLIENT_USER_ID" "${MLAT_CLIENT_USER_ID:-unset}"
+print_kv "effective_ARGS" "${mlat_client_args_rendered}"
+
+# Validate required arguments
+missing_args=()
+if ! has_mlat_opt "--lat"; then
+    missing_args+=("--lat (set MLAT_CLIENT_LAT)")
+fi
+if ! has_mlat_opt "--lon"; then
+    missing_args+=("--lon (set MLAT_CLIENT_LON)")
+fi
+if ! has_mlat_opt "--alt"; then
+    missing_args+=("--alt (set MLAT_CLIENT_ALT)")
+fi
+if ! has_mlat_opt "--user"; then
+    missing_args+=("--user (set MLAT_CLIENT_USER_ID)")
+fi
+
+if [[ ${#missing_args[@]} -gt 0 ]]; then
+    echo "[$(timestamp_utc)] ERROR: Required arguments missing:" >&2
+    for arg in "${missing_args[@]}"; do
+        echo "  - ${arg}" >&2
+    done
+    echo "[$(timestamp_utc)] Set the required environment variables and restart." >&2
+    sleep 30
+    exit 1
+fi
+
+if [[ -z ${LSIO_NON_ROOT_USER:-} ]]; then
+    exec s6-setuidgid "${mlat_client_user}" /usr/local/bin/mlat-client \
+        "${mlat_client_args[@]}"
+fi
+
+exec /usr/local/bin/mlat-client "${mlat_client_args[@]}"

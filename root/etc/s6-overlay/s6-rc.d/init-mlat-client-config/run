@@ -1,0 +1,23 @@
+#!/usr/bin/with-contenv bash
+
+set -euo pipefail
+
+mlat_client_user=${MLAT_CLIENT_USER:-root}
+mlat_client_config_dir=/config/mlat-client
+
+if [[ "${mlat_client_user}" != "root" ]]; then
+    if [[ "${mlat_client_user}" == "abc" && -z ${PUID:-} ]]; then
+        export PUID=911
+    fi
+    if [[ "${mlat_client_user}" == "abc" && -z ${PGID:-} ]]; then
+        export PGID=911
+    fi
+fi
+
+mkdir -p \
+    "${mlat_client_config_dir}"
+
+if [[ -z ${LSIO_NON_ROOT_USER:-} ]]; then
+    lsiown -R "${mlat_client_user}:${mlat_client_user}" \
+        "${mlat_client_config_dir}"
+fi
