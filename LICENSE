@@ -31,10 +31,13 @@ License, version 3 or any later version.
 
 Upstream repository: https://github.com/wiedehopf/mlat-client
 
-Original author:    Oliver Jowett <oliver@mutability.co.uk> (mutability)
-Current maintainer: wiedehopf (Matthias Wirth) <https://github.com/wiedehopf>
+Original author:
+  Copyright (C) 2015 Oliver Jowett <oliver@mutability.co.uk>
+  https://github.com/mutability/mlat-client
 
-Copyright 2015, Oliver Jowett <oliver@mutability.co.uk>
+Fork maintainer and continued development:
+  Copyright (C) 2019-2025 wiedehopf (Matthias Wirth)
+  https://github.com/wiedehopf/mlat-client
 
 Please see the individual source files in the upstream repository for
 full copyright and license details.
