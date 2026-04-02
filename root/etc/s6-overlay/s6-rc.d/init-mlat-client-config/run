@@ -4,6 +4,7 @@ set -euo pipefail
 
 mlat_client_user=${MLAT_CLIENT_USER:-root}
 mlat_client_config_dir=/config/mlat-client
+_s6_env=/run/s6/container_environment
 
 if [[ "${mlat_client_user}" != "root" ]]; then
     if [[ "${mlat_client_user}" == "abc" && -z ${PUID:-} ]]; then
@@ -21,3 +22,73 @@ if [[ -z ${LSIO_NON_ROOT_USER:-} ]]; then
     lsiown -R "${mlat_client_user}:${mlat_client_user}" \
         "${mlat_client_config_dir}"
 fi
+
+# --- IP-based geolocation auto-detection ---
+receiver_lat="${MLAT_CLIENT_LAT:-}"
+receiver_lon="${MLAT_CLIENT_LON:-}"
+receiver_alt="${MLAT_CLIENT_ALT:-}"
+auto_location="${MLAT_CLIENT_AUTO_LOCATION:-true}"
+
+if [[ -z "${receiver_lat}" || -z "${receiver_lon}" ]] && [[ "${auto_location}" =~ ^(true|yes|1)$ ]]; then
+    printf '[init] MLAT_CLIENT_LAT/LON not set, attempting IP-based geolocation\n'
+    # NOTE: ip-api.com free tier only supports HTTP — HTTPS requires a paid plan.
+    # This request sends only the container's public IP; no PII is transmitted.
+    if geo_json=$(wget -qO- -T 5 \
+        "http://ip-api.com/json/?fields=status,query,lat,lon,city,regionName,country,isp,timezone" 2>/dev/null); then
+        geo_status=$(printf '%s' "${geo_json}" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+        if [[ "${geo_status}" == "success" ]]; then
+            geo_ip=$(printf '%s' "${geo_json}" | grep -o '"query":"[^"]*"' | cut -d'"' -f4)
+            receiver_lat=$(printf '%s' "${geo_json}" | grep -o '"lat":[0-9.eE+-]*' | cut -d: -f2)
+            receiver_lon=$(printf '%s' "${geo_json}" | grep -o '"lon":[0-9.eE+-]*' | cut -d: -f2)
+            geo_city=$(printf '%s' "${geo_json}" | grep -o '"city":"[^"]*"' | cut -d'"' -f4)
+            geo_region=$(printf '%s' "${geo_json}" | grep -o '"regionName":"[^"]*"' | cut -d'"' -f4)
+            geo_country=$(printf '%s' "${geo_json}" | grep -o '"country":"[^"]*"' | cut -d'"' -f4)
+            geo_isp=$(printf '%s' "${geo_json}" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
+            geo_tz=$(printf '%s' "${geo_json}" | grep -o '"timezone":"[^"]*"' | cut -d'"' -f4)
+            printf '[init] auto-detected location via IP %s: %s, %s\n' "${geo_ip}" "${receiver_lat}" "${receiver_lon}"
+            printf '[init] approximate location: %s, %s, %s (tz: %s, isp: %s)\n' \
+                "${geo_city}" "${geo_region}" "${geo_country}" "${geo_tz}" "${geo_isp}"
+            # Resolve ground elevation from lat/lon when altitude is not explicitly set
+            if [[ -z "${receiver_alt}" ]]; then
+                printf '[init] querying terrain elevation for lat=%s, lon=%s\n' "${receiver_lat}" "${receiver_lon}"
+                if elev_json=$(wget -qO- -T 5 \
+                    "https://api.open-meteo.com/v1/elevation?latitude=${receiver_lat}&longitude=${receiver_lon}" 2>/dev/null); then
+                    elev_val=$(printf '%s' "${elev_json}" | grep -o '"elevation":\[[0-9.eE+-]*\]' | grep -o '[0-9.eE+-]*')
+                    if [[ -n "${elev_val}" ]]; then
+                        # Round to nearest integer and append metres suffix
+                        elev_int=$(printf '%.0f' "${elev_val}")
+                        receiver_alt="${elev_int}m"
+                        printf '[init] auto-detected altitude: %s (ground elevation from Open-Meteo)\n' "${receiver_alt}"
+                    else
+                        receiver_alt="0m"
+                        printf '[init] WARNING: elevation API returned unexpected data, defaulting altitude to %s\n' "${receiver_alt}" >&2
+                    fi
+                else
+                    receiver_alt="0m"
+                    printf '[init] WARNING: elevation lookup failed (network error or timeout), defaulting altitude to %s\n' "${receiver_alt}" >&2
+                fi
+            fi
+        else
+            printf '[init] WARNING: IP geolocation lookup failed (status: %s)\n' "${geo_status}" >&2
+        fi
+    else
+        printf '[init] WARNING: IP geolocation request failed (network error or timeout)\n' >&2
+    fi
+elif [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]]; then
+    printf '[init] using explicit location: lat=%s, lon=%s, alt=%s\n' "${receiver_lat}" "${receiver_lon}" "${receiver_alt:-unset}"
+else
+    printf '[init] WARNING: auto-location disabled and MLAT_CLIENT_LAT/LON not set\n' >&2
+fi
+
+# Persist detected/resolved location in s6 environment for downstream services
+if [[ -n "${receiver_lat}" ]]; then
+    printf '%s' "${receiver_lat}" > "${_s6_env}/MLAT_CLIENT_LAT"
+fi
+if [[ -n "${receiver_lon}" ]]; then
+    printf '%s' "${receiver_lon}" > "${_s6_env}/MLAT_CLIENT_LON"
+fi
+if [[ -n "${receiver_alt}" ]]; then
+    printf '%s' "${receiver_alt}" > "${_s6_env}/MLAT_CLIENT_ALT"
+fi
+
+printf '[init] mlat-client initialization complete\n'

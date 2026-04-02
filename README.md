@@ -220,9 +220,9 @@ See [Balena documentation](https://docs.balena.io/) for details.
 
 | Parameter | Description | Example |
 | --- | --- | --- |
-| `-e MLAT_CLIENT_LAT=` | Receiver latitude in decimal degrees | `51.5` |
-| `-e MLAT_CLIENT_LON=` | Receiver longitude in decimal degrees | `-0.1` |
-| `-e MLAT_CLIENT_ALT=` | Receiver altitude with unit (m or ft) | `50m` |
+| `-e MLAT_CLIENT_LAT=` | Receiver latitude in decimal degrees (auto-detected if empty and `MLAT_CLIENT_AUTO_LOCATION=true`) | `51.5` |
+| `-e MLAT_CLIENT_LON=` | Receiver longitude in decimal degrees (auto-detected if empty and `MLAT_CLIENT_AUTO_LOCATION=true`) | `-0.1` |
+| `-e MLAT_CLIENT_ALT=` | Receiver altitude with unit (m or ft); auto-detected from terrain elevation when lat/lon are auto-detected | `50m` |
 | `-e MLAT_CLIENT_USER_ID=` | User identifier for the MLAT server | `myuser` |
 
 ### Environment Variables (Optional)
@@ -238,6 +238,7 @@ See [Balena documentation](https://docs.balena.io/) for details.
 | `-e MLAT_CLIENT_STATS_JSON=` | *(none)* | Path for stats JSON output |
 | `-e MLAT_CLIENT_PRIVACY=` | `false` | Hide receiver on coverage maps |
 | `-e MLAT_CLIENT_NO_UDP=` | `false` | Disable UDP transport |
+| `-e MLAT_CLIENT_AUTO_LOCATION=` | `true` | Auto-detect lat/lon via IP geolocation when not explicitly set |
 | `-e MLAT_CLIENT_LOG_TIMESTAMPS=` | `true` | Print timestamps in logs |
 | `-e MLAT_CLIENT_ARGS=` | *(none)* | Raw arguments (overrides individual env vars) |
 | `-e MLAT_CLIENT_USER=` | `root` | Runtime user for the container |
@@ -261,6 +262,31 @@ You can configure the mlat-client in two ways:
 1. **Individual environment variables** (recommended): Set `MLAT_CLIENT_LAT`, `MLAT_CLIENT_LON`, etc. The container service script assembles the command-line arguments.
 
 2. **Raw arguments**: Set `MLAT_CLIENT_ARGS` to the full argument string. This overrides the individual environment variables.
+
+### Automatic Location Detection
+
+When `MLAT_CLIENT_AUTO_LOCATION` is `true` (the default) and `MLAT_CLIENT_LAT`/`MLAT_CLIENT_LON` are **not** set, the container will automatically detect your approximate latitude and longitude using IP-based geolocation via [ip-api.com](http://ip-api.com).
+
+- **Latitude and longitude** are resolved from your container's public IP address via [ip-api.com](http://ip-api.com)
+- **Altitude** is resolved from the detected lat/lon using the [Open-Meteo Elevation API](https://open-meteo.com/en/docs/elevation-api) (ground elevation in metres); falls back to `0m` on failure
+- Explicit `MLAT_CLIENT_LAT`/`MLAT_CLIENT_LON`/`MLAT_CLIENT_ALT` values always take priority
+- Set `MLAT_CLIENT_AUTO_LOCATION=false` to disable this feature entirely
+
+> **Note:** IP-based geolocation is approximate (typically city-level accuracy). Elevation is ground-level at the detected coordinates. For best MLAT results, set your exact coordinates manually.
+
+> **Note on altitude:** The auto-detected altitude represents **ground elevation** at the detected coordinates, not your antenna height above sea level. For accurate MLAT, your altitude should include the height of your antenna above ground. For example, if ground elevation is `50m` and your antenna is on a `10m` rooftop mast, set `MLAT_CLIENT_ALT=60m`. When relying on auto-detection, consider adding your antenna height manually for better multilateration accuracy.
+
+Example — auto-detect location:
+
+```yaml
+environment:
+  - MLAT_CLIENT_AUTO_LOCATION=true    # default, can be omitted
+  # MLAT_CLIENT_LAT, MLAT_CLIENT_LON, MLAT_CLIENT_ALT left unset
+  - MLAT_CLIENT_USER_ID=myuser
+  - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
+  - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
+  - MLAT_CLIENT_RESULTS=beast,connect,readsb:30104
+```
 
 ### Results Output Format
 
@@ -348,9 +374,10 @@ docker logs mlat-client --tail 50 -f  # Follow last 50 lines
 
 Common causes:
 
-- **Missing required arguments**: Ensure `MLAT_CLIENT_LAT`, `MLAT_CLIENT_LON`, `MLAT_CLIENT_ALT`, and `MLAT_CLIENT_USER_ID` are set
+- **Missing required arguments**: Ensure `MLAT_CLIENT_LAT`, `MLAT_CLIENT_LON`, `MLAT_CLIENT_ALT`, and `MLAT_CLIENT_USER_ID` are set (or leave `LAT`/`LON`/`ALT` empty with `MLAT_CLIENT_AUTO_LOCATION=true` to auto-detect via IP)
 - **Invalid altitude format**: Use suffix `m` (metres) or `ft` (feet), e.g. `50m` or `160ft`
 - **Configuration error**: Check `MLAT_CLIENT_ARGS` syntax
+- **Auto-location failed**: If IP geolocation fails (no internet, API down), set coordinates manually
 
 ### Cannot connect to Beast source
 

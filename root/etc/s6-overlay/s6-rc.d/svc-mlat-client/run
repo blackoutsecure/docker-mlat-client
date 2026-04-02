@@ -23,16 +23,6 @@ if [[ "${mlat_client_user}" != "root" ]]; then
     fi
 fi
 
-timestamp_utc() {
-    date -u '+%Y-%m-%d %H:%M:%S UTC'
-}
-
-print_kv() {
-    local key=$1
-    local value=$2
-    printf '[%s] %-20s %s\n' "$(timestamp_utc)" "${key}:" "${value}"
-}
-
 # Build effective mlat-client arguments
 mlat_client_args=()
 mlat_client_args_source="default"
@@ -127,25 +117,16 @@ if [[ -r /build_version ]]; then
     build_version=$(< /build_version)
 fi
 
-echo "[$(timestamp_utc)] mlat-client container startup configuration"
-print_kv "build_version" "${build_version}"
-print_kv "VERSION" "${VERSION:-unknown}"
-print_kv "BUILD_DATE" "${BUILD_DATE:-unknown}"
-print_kv "VCS_REF" "${VCS_REF:-unknown}"
-print_kv "PUID" "${PUID:-unset}"
-print_kv "PGID" "${PGID:-unset}"
-print_kv "UMASK" "${UMASK:-unset}"
-print_kv "TZ" "${TZ:-unset}"
-print_kv "MLAT_CLIENT_USER" "${mlat_client_user}"
-print_kv "MLAT_CLIENT_ARGS(raw)" "${MLAT_CLIENT_ARGS:-unset}"
-print_kv "MLAT_CLIENT_ARGS(src)" "${mlat_client_args_source}"
-print_kv "MLAT_CLIENT_INPUT" "${MLAT_CLIENT_INPUT_CONNECT:-unset}"
-print_kv "MLAT_CLIENT_SERVER" "${MLAT_CLIENT_SERVER:-unset}"
-print_kv "MLAT_CLIENT_LAT" "${MLAT_CLIENT_LAT:-unset}"
-print_kv "MLAT_CLIENT_LON" "${MLAT_CLIENT_LON:-unset}"
-print_kv "MLAT_CLIENT_ALT" "${MLAT_CLIENT_ALT:-unset}"
-print_kv "MLAT_CLIENT_USER_ID" "${MLAT_CLIENT_USER_ID:-unset}"
-print_kv "effective_ARGS" "${mlat_client_args_rendered}"
+printf '[mlat-client] starting mlat-client multilateration service\n'
+printf '[mlat-client] build: %s\n' "${build_version}"
+printf '[mlat-client] version: %s, built: %s, ref: %s\n' "${VERSION:-unknown}" "${BUILD_DATE:-unknown}" "${VCS_REF:-unknown}"
+printf '[mlat-client] user: %s, PUID: %s, PGID: %s, TZ: %s\n' "${mlat_client_user}" "${PUID:-unset}" "${PGID:-unset}" "${TZ:-unset}"
+printf '[mlat-client] input-connect: %s\n' "${MLAT_CLIENT_INPUT_CONNECT:-unset}"
+printf '[mlat-client] server: %s\n' "${MLAT_CLIENT_SERVER:-unset}"
+printf '[mlat-client] receiver location: lat=%s, lon=%s, alt=%s\n' "${MLAT_CLIENT_LAT:-unset}" "${MLAT_CLIENT_LON:-unset}" "${MLAT_CLIENT_ALT:-unset}"
+printf '[mlat-client] user-id: %s\n' "${MLAT_CLIENT_USER_ID:-unset}"
+printf '[mlat-client] args source: %s\n' "${mlat_client_args_source}"
+printf '[mlat-client] effective args: %s\n' "${mlat_client_args_rendered}"
 
 # Validate required arguments
 missing_args=()
@@ -163,11 +144,11 @@ if ! has_mlat_opt "--user"; then
 fi
 
 if [[ ${#missing_args[@]} -gt 0 ]]; then
-    echo "[$(timestamp_utc)] ERROR: Required arguments missing:" >&2
+    printf '[mlat-client] ERROR: required arguments missing:\n' >&2
     for arg in "${missing_args[@]}"; do
-        echo "  - ${arg}" >&2
+        printf '[mlat-client]   - %s\n' "${arg}" >&2
     done
-    echo "[$(timestamp_utc)] Set the required environment variables and restart." >&2
+    printf '[mlat-client] set the required environment variables and restart\n' >&2
     sleep 30
     exit 1
 fi

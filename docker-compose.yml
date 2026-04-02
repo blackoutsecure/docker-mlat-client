@@ -8,9 +8,10 @@ services:
       TZ: Etc/UTC
       MLAT_CLIENT_INPUT_CONNECT: 'readsb:30005'
       MLAT_CLIENT_SERVER: 'feed.adsbexchange.com:31090'
-      MLAT_CLIENT_LAT: '0.0'
-      MLAT_CLIENT_LON: '0.0'
-      MLAT_CLIENT_ALT: '0m'
+      MLAT_CLIENT_AUTO_LOCATION: 'true'
+      MLAT_CLIENT_LAT: ''
+      MLAT_CLIENT_LON: ''
+      MLAT_CLIENT_ALT: ''
       MLAT_CLIENT_USER_ID: 'changeme'
       MLAT_CLIENT_RESULTS: 'beast,connect,readsb:30104'
     volumes:
