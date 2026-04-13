@@ -49,7 +49,7 @@ coverage/
 .coverage
 
 # Local development
-local/
-.local/
+/local/
+/.local/
 .cache/
 *.tmp
