@@ -6,7 +6,7 @@ services:
     container_name: mlat-client
     environment:
       TZ: Etc/UTC
-      MLAT_CLIENT_INPUT_CONNECT: 'readsb:30005'
+      MLAT_CLIENT_INPUT_CONNECT: 'readsb:30004'
       MLAT_CLIENT_SERVER: 'feed.adsbexchange.com:31090'
       MLAT_CLIENT_AUTO_LOCATION: 'true'
       MLAT_CLIENT_AUTO_ALT: 'true'
