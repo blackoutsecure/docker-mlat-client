@@ -25,6 +25,7 @@ local/
 *.so
 *.a
 *.sh
+!root/usr/local/bin/*.sh
 *.log
 .tmp-config/
 tmp/
