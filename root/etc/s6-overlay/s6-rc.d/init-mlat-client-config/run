@@ -28,6 +28,7 @@ receiver_lat="${MLAT_CLIENT_LAT:-}"
 receiver_lon="${MLAT_CLIENT_LON:-}"
 receiver_alt="${MLAT_CLIENT_ALT:-}"
 auto_location="${MLAT_CLIENT_AUTO_LOCATION:-true}"
+auto_alt="${MLAT_CLIENT_AUTO_ALT:-true}"
 
 if [[ -z "${receiver_lat}" || -z "${receiver_lon}" ]] && [[ "${auto_location}" =~ ^(true|yes|1)$ ]]; then
     printf '[init] MLAT_CLIENT_LAT/LON not set, attempting IP-based geolocation\n'
@@ -48,26 +49,6 @@ if [[ -z "${receiver_lat}" || -z "${receiver_lon}" ]] && [[ "${auto_location}" =
             printf '[init] auto-detected location via IP %s: %s, %s\n' "${geo_ip}" "${receiver_lat}" "${receiver_lon}"
             printf '[init] approximate location: %s, %s, %s (tz: %s, isp: %s)\n' \
                 "${geo_city}" "${geo_region}" "${geo_country}" "${geo_tz}" "${geo_isp}"
-            # Resolve ground elevation from lat/lon when altitude is not explicitly set
-            if [[ -z "${receiver_alt}" ]]; then
-                printf '[init] querying terrain elevation for lat=%s, lon=%s\n' "${receiver_lat}" "${receiver_lon}"
-                if elev_json=$(wget -qO- -T 5 \
-                    "https://api.open-meteo.com/v1/elevation?latitude=${receiver_lat}&longitude=${receiver_lon}" 2>/dev/null); then
-                    elev_val=$(printf '%s' "${elev_json}" | grep -o '"elevation":\[[0-9.eE+-]*\]' | grep -o '[0-9.eE+-]*')
-                    if [[ -n "${elev_val}" ]]; then
-                        # Round to nearest integer and append metres suffix
-                        elev_int=$(printf '%.0f' "${elev_val}")
-                        receiver_alt="${elev_int}m"
-                        printf '[init] auto-detected altitude: %s (ground elevation from Open-Meteo)\n' "${receiver_alt}"
-                    else
-                        receiver_alt="0m"
-                        printf '[init] WARNING: elevation API returned unexpected data, defaulting altitude to %s\n' "${receiver_alt}" >&2
-                    fi
-                else
-                    receiver_alt="0m"
-                    printf '[init] WARNING: elevation lookup failed (network error or timeout), defaulting altitude to %s\n' "${receiver_alt}" >&2
-                fi
-            fi
         else
             printf '[init] WARNING: IP geolocation lookup failed (status: %s)\n' "${geo_status}" >&2
         fi
@@ -78,6 +59,31 @@ elif [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]]; then
     printf '[init] using explicit location: lat=%s, lon=%s, alt=%s\n' "${receiver_lat}" "${receiver_lon}" "${receiver_alt:-unset}"
 else
     printf '[init] WARNING: auto-location disabled and MLAT_CLIENT_LAT/LON not set\n' >&2
+fi
+
+# --- Auto-altitude detection ---
+# Resolve ground elevation from lat/lon when altitude is not explicitly set.
+# Works with both auto-detected and explicitly provided coordinates.
+if [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]] && [[ -z "${receiver_alt}" ]] && [[ "${auto_alt}" =~ ^(true|yes|1)$ ]]; then
+    printf '[init] MLAT_CLIENT_ALT not set, querying terrain elevation for lat=%s, lon=%s\n' "${receiver_lat}" "${receiver_lon}"
+    if elev_json=$(wget -qO- -T 5 \
+        "https://api.open-meteo.com/v1/elevation?latitude=${receiver_lat}&longitude=${receiver_lon}" 2>/dev/null); then
+        elev_val=$(printf '%s' "${elev_json}" | grep -o '"elevation":\[[0-9.eE+-]*\]' | grep -o '[0-9.eE+-]*')
+        if [[ -n "${elev_val}" ]]; then
+            # Round to nearest integer and append metres suffix
+            elev_int=$(printf '%.0f' "${elev_val}")
+            receiver_alt="${elev_int}m"
+            printf '[init] auto-detected altitude: %s (ground elevation from Open-Meteo)\n' "${receiver_alt}"
+        else
+            receiver_alt="0m"
+            printf '[init] WARNING: elevation API returned unexpected data, defaulting altitude to %s\n' "${receiver_alt}" >&2
+        fi
+    else
+        receiver_alt="0m"
+        printf '[init] WARNING: elevation lookup failed (network error or timeout), defaulting altitude to %s\n' "${receiver_alt}" >&2
+    fi
+elif [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]] && [[ -z "${receiver_alt}" ]]; then
+    printf '[init] WARNING: auto-altitude disabled and MLAT_CLIENT_ALT not set\n' >&2
 fi
 
 # Persist detected/resolved location in s6 environment for downstream services

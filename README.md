@@ -222,7 +222,7 @@ See [Balena documentation](https://docs.balena.io/) for details.
 | --- | --- | --- |
 | `-e MLAT_CLIENT_LAT=` | Receiver latitude in decimal degrees (auto-detected if empty and `MLAT_CLIENT_AUTO_LOCATION=true`) | `51.5` |
 | `-e MLAT_CLIENT_LON=` | Receiver longitude in decimal degrees (auto-detected if empty and `MLAT_CLIENT_AUTO_LOCATION=true`) | `-0.1` |
-| `-e MLAT_CLIENT_ALT=` | Receiver altitude with unit (m or ft); auto-detected from terrain elevation when lat/lon are auto-detected | `50m` |
+| `-e MLAT_CLIENT_ALT=` | Receiver altitude with unit (m or ft); auto-detected from terrain elevation when `MLAT_CLIENT_AUTO_ALT=true` and alt is not set | `50m` |
 | `-e MLAT_CLIENT_USER_ID=` | User identifier for the MLAT server | `myuser` |
 
 ### Environment Variables (Optional)
@@ -239,6 +239,7 @@ See [Balena documentation](https://docs.balena.io/) for details.
 | `-e MLAT_CLIENT_PRIVACY=` | `false` | Hide receiver on coverage maps |
 | `-e MLAT_CLIENT_NO_UDP=` | `false` | Disable UDP transport |
 | `-e MLAT_CLIENT_AUTO_LOCATION=` | `true` | Auto-detect lat/lon via IP geolocation when not explicitly set |
+| `-e MLAT_CLIENT_AUTO_ALT=` | `true` | Auto-detect altitude via terrain elevation when lat/lon are available but alt is not set |
 | `-e MLAT_CLIENT_LOG_TIMESTAMPS=` | `true` | Print timestamps in logs |
 | `-e MLAT_CLIENT_ARGS=` | *(none)* | Raw arguments (overrides individual env vars) |
 | `-e MLAT_CLIENT_USER=` | `root` | Runtime user for the container |
@@ -268,13 +269,10 @@ You can configure the mlat-client in two ways:
 When `MLAT_CLIENT_AUTO_LOCATION` is `true` (the default) and `MLAT_CLIENT_LAT`/`MLAT_CLIENT_LON` are **not** set, the container will automatically detect your approximate latitude and longitude using IP-based geolocation via [ip-api.com](http://ip-api.com).
 
 - **Latitude and longitude** are resolved from your container's public IP address via [ip-api.com](http://ip-api.com)
-- **Altitude** is resolved from the detected lat/lon using the [Open-Meteo Elevation API](https://open-meteo.com/en/docs/elevation-api) (ground elevation in metres); falls back to `0m` on failure
-- Explicit `MLAT_CLIENT_LAT`/`MLAT_CLIENT_LON`/`MLAT_CLIENT_ALT` values always take priority
+- Explicit `MLAT_CLIENT_LAT`/`MLAT_CLIENT_LON` values always take priority
 - Set `MLAT_CLIENT_AUTO_LOCATION=false` to disable this feature entirely
 
-> **Note:** IP-based geolocation is approximate (typically city-level accuracy). Elevation is ground-level at the detected coordinates. For best MLAT results, set your exact coordinates manually.
-
-> **Note on altitude:** The auto-detected altitude represents **ground elevation** at the detected coordinates, not your antenna height above sea level. For accurate MLAT, your altitude should include the height of your antenna above ground. For example, if ground elevation is `50m` and your antenna is on a `10m` rooftop mast, set `MLAT_CLIENT_ALT=60m`. When relying on auto-detection, consider adding your antenna height manually for better multilateration accuracy.
+> **Note:** IP-based geolocation is approximate (typically city-level accuracy). For best MLAT results, set your exact coordinates manually.
 
 Example — auto-detect location:
 
@@ -282,6 +280,30 @@ Example — auto-detect location:
 environment:
   - MLAT_CLIENT_AUTO_LOCATION=true    # default, can be omitted
   # MLAT_CLIENT_LAT, MLAT_CLIENT_LON, MLAT_CLIENT_ALT left unset
+  - MLAT_CLIENT_USER_ID=myuser
+  - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
+  - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
+  - MLAT_CLIENT_RESULTS=beast,connect,readsb:30104
+```
+
+### Automatic Altitude Detection
+
+When `MLAT_CLIENT_AUTO_ALT` is `true` (the default) and `MLAT_CLIENT_ALT` is **not** set, the container will automatically detect your ground elevation using the [Open-Meteo Elevation API](https://open-meteo.com/en/docs/elevation-api). This works with both auto-detected and explicitly provided coordinates.
+
+- **Altitude** is resolved from lat/lon using the Open-Meteo Elevation API (ground elevation in metres); falls back to `0m` on failure
+- Explicit `MLAT_CLIENT_ALT` always takes priority
+- Set `MLAT_CLIENT_AUTO_ALT=false` to disable this feature
+
+> **Note on altitude:** The auto-detected altitude represents **ground elevation** at the detected coordinates, not your antenna height above sea level. For accurate MLAT, your altitude should include the height of your antenna above ground. For example, if ground elevation is `50m` and your antenna is on a `10m` rooftop mast, set `MLAT_CLIENT_ALT=60m`. When relying on auto-detection, consider adding your antenna height manually for better multilateration accuracy.
+
+Example — explicit lat/lon with auto-detected altitude:
+
+```yaml
+environment:
+  - MLAT_CLIENT_LAT=51.5
+  - MLAT_CLIENT_LON=-0.1
+  # MLAT_CLIENT_ALT left unset — auto-detected from terrain elevation
+  - MLAT_CLIENT_AUTO_ALT=true          # default, can be omitted
   - MLAT_CLIENT_USER_ID=myuser
   - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
   - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
