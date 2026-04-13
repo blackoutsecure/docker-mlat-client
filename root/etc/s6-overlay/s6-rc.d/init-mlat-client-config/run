@@ -68,7 +68,7 @@ if [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]] && [[ -z "${receiver_alt}"
     printf '[init] MLAT_CLIENT_ALT not set, querying terrain elevation for lat=%s, lon=%s\n' "${receiver_lat}" "${receiver_lon}"
     if elev_json=$(wget -qO- -T 5 \
         "https://api.open-meteo.com/v1/elevation?latitude=${receiver_lat}&longitude=${receiver_lon}" 2>/dev/null); then
-        elev_val=$(printf '%s' "${elev_json}" | grep -o '"elevation":\[[0-9.eE+-]*\]' | grep -o '[0-9.eE+-]*')
+        elev_val=$(printf '%s' "${elev_json}" | grep -o '"elevation":\[[^]]*\]' | sed 's/.*\[//;s/\]//')
         if [[ -n "${elev_val}" ]]; then
             # Round to nearest integer and append metres suffix
             elev_int=$(printf '%.0f' "${elev_val}")
