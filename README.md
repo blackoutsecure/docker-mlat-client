@@ -125,7 +125,7 @@ services:
     container_name: mlat-adsbx
     environment:
       - TZ=Etc/UTC
-      - MLAT_CLIENT_INPUT_CONNECT=readsb:30004
+      - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
       - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
       - MLAT_CLIENT_AUTO_LOCATION=true
       - MLAT_CLIENT_USER_ID=myuser
@@ -153,6 +153,7 @@ services:
     environment:
       - TZ=Etc/UTC
       - READSB_ARGS=--net --device-type rtlsdr --net-bi-port 30004,30104
+      - READSB_NET_BO_PORT=30005
       - READSB_AUTO_LOCATION=true
       - READSB_AUTOGAIN=true
       # - READSB_BIASTEE=true          # enable for powered LNAs (e.g. SAWbird+)
@@ -183,7 +184,7 @@ services:
       - readsb
     environment:
       - TZ=Etc/UTC
-      - MLAT_CLIENT_INPUT_CONNECT=readsb:30004
+      - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
       - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
       - MLAT_CLIENT_AUTO_LOCATION=true
       - MLAT_CLIENT_USER_ID=myuser
