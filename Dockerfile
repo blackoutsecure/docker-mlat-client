@@ -89,6 +89,8 @@ RUN if [ -f /usr/local/share/mlat-client/build-metadata.env ]; then \
     fi && \
     echo "Linuxserver.io version:- ${VERSION:-unknown} Build-date:- ${BUILD_DATE:-unknown} Revision:- ${VCS_REF:-unknown}" > /build_version && \
     find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name finish -o -name check \) -exec chmod 0755 {} + && \
+    # Disable the base image's verbose cron service — this container has no cron jobs
+    rm -rf /etc/s6-overlay/s6-rc.d/svc-cron /etc/s6-overlay/s6-rc.d/user/contents.d/svc-cron && \
     rm -rf /tmp/* /var/tmp/* /var/cache/apk/*
 
 VOLUME ["/config"]

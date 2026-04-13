@@ -117,6 +117,27 @@ if [[ -r /build_version ]]; then
     build_version=$(< /build_version)
 fi
 
+# Wait for Beast data source to be available before starting
+input_host="${MLAT_CLIENT_INPUT_CONNECT%%:*}"
+input_port="${MLAT_CLIENT_INPUT_CONNECT##*:}"
+if [[ -n "${input_host}" && -n "${input_port}" ]]; then
+    printf '[mlat-client] waiting for %s:%s to be available...\n' "${input_host}" "${input_port}"
+    retries=0
+    max_retries=60
+    while ! echo > "/dev/tcp/${input_host}/${input_port}" 2>/dev/null; do
+        retries=$((retries + 1))
+        if (( retries >= max_retries )); then
+            printf '[mlat-client] WARNING: %s:%s not reachable after %d attempts, starting anyway\n' \
+                "${input_host}" "${input_port}" "${max_retries}" >&2
+            break
+        fi
+        sleep 2
+    done
+    if (( retries < max_retries )); then
+        printf '[mlat-client] %s:%s is reachable (after %d checks)\n' "${input_host}" "${input_port}" "${retries}"
+    fi
+fi
+
 printf '[mlat-client] starting mlat-client multilateration service\n'
 printf '[mlat-client] build: %s\n' "${build_version}"
 printf '[mlat-client] version: %s, built: %s, ref: %s\n' "${VERSION:-unknown}" "${BUILD_DATE:-unknown}" "${VCS_REF:-unknown}"
