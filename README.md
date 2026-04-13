@@ -122,22 +122,24 @@ The architectures supported by this image are:
 services:
   mlat-client:
     image: blackoutsecure/mlat-client:latest
-    container_name: mlat-client
+    container_name: mlat-adsbx
     environment:
       - TZ=Etc/UTC
-      - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
+      - MLAT_CLIENT_INPUT_CONNECT=readsb:30004
       - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
-      - MLAT_CLIENT_LAT=51.5
-      - MLAT_CLIENT_LON=-0.1
-      - MLAT_CLIENT_ALT=50m
+      - MLAT_CLIENT_AUTO_LOCATION=true
       - MLAT_CLIENT_USER_ID=myuser
       - MLAT_CLIENT_RESULTS=beast,connect,readsb:30104
+      - LOG_LEVEL=info                # debug | info | warn | error | fatal
     volumes:
-      - /path/to/mlat-client/config:/config
-    restart: unless-stopped
+      - mlat-config:/config
     tmpfs:
       - /tmp
-      - /run
+      - /run:exec
+    restart: unless-stopped
+
+volumes:
+  mlat-config:
 ```
 
 ### docker-compose with readsb (full ADS-B + MLAT stack)
@@ -150,33 +152,48 @@ services:
     container_name: readsb
     environment:
       - TZ=Etc/UTC
-      - READSB_ARGS=--net --device-type rtlsdr
+      - READSB_ARGS=--net --device-type rtlsdr --net-bi-port 30004,30104
+      - READSB_AUTO_LOCATION=true
+      - READSB_AUTOGAIN=true
+      # - READSB_BIASTEE=true          # enable for powered LNAs (e.g. SAWbird+)
+      - FEED_PROFILES=adsbexchange
+      - LOG_LEVEL=info
     volumes:
       - readsb-config:/config
       - readsb-json:/run/readsb
-    ports:
-      - 30003:30003
-      - 30005:30005
     devices:
       - /dev/bus/usb:/dev/bus/usb
+    ports:
+      - 30001:30001
+      - 30002:30002
+      - 30003:30003
+      - 30004:30004
+      - 30005:30005
+      - 30104:30104
+    privileged: true
+    tmpfs:
+      - /tmp
+      - /run:exec
     restart: unless-stopped
 
   mlat-client:
     image: blackoutsecure/mlat-client:latest
-    container_name: mlat-client
+    container_name: mlat-adsbx
     depends_on:
       - readsb
     environment:
       - TZ=Etc/UTC
-      - MLAT_CLIENT_INPUT_CONNECT=readsb:30005
+      - MLAT_CLIENT_INPUT_CONNECT=readsb:30004
       - MLAT_CLIENT_SERVER=feed.adsbexchange.com:31090
-      - MLAT_CLIENT_LAT=51.5
-      - MLAT_CLIENT_LON=-0.1
-      - MLAT_CLIENT_ALT=50m
+      - MLAT_CLIENT_AUTO_LOCATION=true
       - MLAT_CLIENT_USER_ID=myuser
       - MLAT_CLIENT_RESULTS=beast,connect,readsb:30104
+      - LOG_LEVEL=info
     volumes:
       - mlat-config:/config
+    tmpfs:
+      - /tmp
+      - /run:exec
     restart: unless-stopped
 
 volumes:
@@ -184,6 +201,25 @@ volumes:
   readsb-json:
   mlat-config:
 ```
+
+> **Note:** When both services are in the same compose file, Docker Compose
+> creates a shared network automatically — no extra network configuration needed.
+> If you run mlat-client from a **separate** compose file, create an external
+> network so both containers can communicate:
+>
+> ```bash
+> docker network create adsb
+> ```
+>
+> Then add to each compose file:
+>
+> ```yaml
+> networks:
+>   adsb:
+>     external: true
+> ```
+>
+> And add `networks: [adsb]` to each service.
 
 ### docker-cli ([click here for more info](https://docs.docker.com/engine/reference/commandline/cli/))
 

@@ -3,34 +3,24 @@ version: '2.4'
 services:
   mlat-client:
     image: docker.io/blackoutsecure/mlat-client:latest
-    container_name: mlat-client
+    container_name: mlat-adsbx
     environment:
       TZ: Etc/UTC
       MLAT_CLIENT_INPUT_CONNECT: 'readsb:30004'
       MLAT_CLIENT_SERVER: 'feed.adsbexchange.com:31090'
       MLAT_CLIENT_AUTO_LOCATION: 'true'
-      MLAT_CLIENT_AUTO_ALT: 'true'
       MLAT_CLIENT_USER_ID: 'changeme'
       MLAT_CLIENT_RESULTS: 'beast,connect,readsb:30104'
+      LOG_LEVEL: 'info'              # debug | info | warn | error | fatal
     volumes:
-      - config:/config
+      - mlat-config:/config
     labels:
-      io.balena.features.kernel-modules: '1'
       io.balena.features.supervisor-api: '1'
       io.balena.features.balena-api: '1'
-    cap_drop:
-      - ALL
-    cap_add:
-      - SETUID
-      - SETGID
-      - CHOWN
-    security_opt:
-      - no-new-privileges:true
     tmpfs:
       - /tmp
       - /run:exec
-    read_only: false
     restart: unless-stopped
 
 volumes:
-  config:
+  mlat-config:

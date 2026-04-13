@@ -2,8 +2,35 @@
 
 set -euo pipefail
 
+# ── Logging ───────────────────────────────────────────────────────────────────
+SVC_NAME="svc-mlat-client"
+# shellcheck source=/usr/local/bin/log-functions.sh
+. /usr/local/bin/log-functions.sh
+
 mlat_client_user=${MLAT_CLIENT_USER:-root}
 build_metadata_path=/usr/local/share/mlat-client/build-metadata.env
+
+# ── Restart backoff ───────────────────────────────────────────────────────────
+# Prevent tight crash loops when the MLAT server or input source is unavailable.
+# Track consecutive failures via an ephemeral file in /run and apply a
+# progressive delay (5s → 10s → 15s … max 60s) before each attempt.
+#
+# Note: the fail counter is pre-incremented BEFORE exec (since exec replaces
+# the process and EXIT traps never fire). We must assume failure upfront.
+_fail_count_file="/run/mlat-client-fail-count"
+_fail_count=0
+if [[ -f "${_fail_count_file}" ]]; then
+    _fail_count=$(tr -d '[:space:]' < "${_fail_count_file}")
+    _fail_count=${_fail_count:-0}
+fi
+_is_restart=false
+if [[ ${_fail_count} -gt 0 ]]; then
+    _is_restart=true
+    _backoff=$(( _fail_count * 5 ))
+    [[ ${_backoff} -gt 60 ]] && _backoff=60
+    log_warn "Previous launch failed (attempt #${_fail_count}). Waiting ${_backoff}s before retry."
+    sleep "${_backoff}"
+fi
 
 # Import build metadata captured from upstream mlat-client so these values are
 # available to the service process in production.
@@ -121,33 +148,45 @@ fi
 input_host="${MLAT_CLIENT_INPUT_CONNECT%%:*}"
 input_port="${MLAT_CLIENT_INPUT_CONNECT##*:}"
 if [[ -n "${input_host}" && -n "${input_port}" ]]; then
-    printf '[mlat-client] waiting for %s:%s to be available...\n' "${input_host}" "${input_port}"
+    log_info "waiting for ${input_host}:${input_port} to be available..."
     retries=0
     max_retries=60
     while ! echo > "/dev/tcp/${input_host}/${input_port}" 2>/dev/null; do
         retries=$((retries + 1))
         if (( retries >= max_retries )); then
-            printf '[mlat-client] WARNING: %s:%s not reachable after %d attempts, starting anyway\n' \
-                "${input_host}" "${input_port}" "${max_retries}" >&2
+            log_warn "${input_host}:${input_port} not reachable after ${max_retries} attempts, starting anyway"
             break
         fi
         sleep 2
     done
     if (( retries < max_retries )); then
-        printf '[mlat-client] %s:%s is reachable (after %d checks)\n' "${input_host}" "${input_port}" "${retries}"
+        log_info "${input_host}:${input_port} is reachable (after ${retries} checks)"
     fi
 fi
 
-printf '[mlat-client] starting mlat-client multilateration service\n'
-printf '[mlat-client] build: %s\n' "${build_version}"
-printf '[mlat-client] version: %s, built: %s, ref: %s\n' "${VERSION:-unknown}" "${BUILD_DATE:-unknown}" "${VCS_REF:-unknown}"
-printf '[mlat-client] user: %s, PUID: %s, PGID: %s, TZ: %s\n' "${mlat_client_user}" "${PUID:-unset}" "${PGID:-unset}" "${TZ:-unset}"
-printf '[mlat-client] input-connect: %s\n' "${MLAT_CLIENT_INPUT_CONNECT:-unset}"
-printf '[mlat-client] server: %s\n' "${MLAT_CLIENT_SERVER:-unset}"
-printf '[mlat-client] receiver location: lat=%s, lon=%s, alt=%s\n' "${MLAT_CLIENT_LAT:-unset}" "${MLAT_CLIENT_LON:-unset}" "${MLAT_CLIENT_ALT:-unset}"
-printf '[mlat-client] user-id: %s\n' "${MLAT_CLIENT_USER_ID:-unset}"
-printf '[mlat-client] args source: %s\n' "${mlat_client_args_source}"
-printf '[mlat-client] effective args: %s\n' "${mlat_client_args_rendered}"
+# On restarts, log a compact summary instead of the full config dump.
+if [[ "${_is_restart}" == "true" ]]; then
+    log_info "mlat-client restarting (attempt #$((_fail_count + 1))). effective_ARGS: ${mlat_client_args_rendered}"
+else
+    log_info "mlat-client multilateration service starting"
+    log_kv "build_version" "${build_version}"
+    log_kv "VERSION" "${VERSION:-unknown}"
+    log_kv "BUILD_DATE" "${BUILD_DATE:-unknown}"
+    log_kv "VCS_REF" "${VCS_REF:-unknown}"
+    log_kv "PUID" "${PUID:-unset}"
+    log_kv "PGID" "${PGID:-unset}"
+    log_kv "TZ" "${TZ:-unset}"
+    log_kv "MLAT_CLIENT_USER" "${mlat_client_user}"
+    log_kv "input-connect" "${MLAT_CLIENT_INPUT_CONNECT:-unset}"
+    log_kv "server" "${MLAT_CLIENT_SERVER:-unset}"
+    log_kv "lat" "${MLAT_CLIENT_LAT:-unset}"
+    log_kv "lon" "${MLAT_CLIENT_LON:-unset}"
+    log_kv "alt" "${MLAT_CLIENT_ALT:-unset}"
+    log_kv "user-id" "${MLAT_CLIENT_USER_ID:-unset}"
+    log_kv "AUTO_LOCATION" "${MLAT_CLIENT_AUTO_LOCATION:-true}"
+    log_kv "ARGS(src)" "${mlat_client_args_source}"
+    log_kv "effective_ARGS" "${mlat_client_args_rendered}"
+fi
 
 # Validate required arguments
 missing_args=()
@@ -165,14 +204,18 @@ if ! has_mlat_opt "--user"; then
 fi
 
 if [[ ${#missing_args[@]} -gt 0 ]]; then
-    printf '[mlat-client] ERROR: required arguments missing:\n' >&2
+    log_error "required arguments missing:"
     for arg in "${missing_args[@]}"; do
-        printf '[mlat-client]   - %s\n' "${arg}" >&2
+        log_error "  - ${arg}"
     done
-    printf '[mlat-client] set the required environment variables and restart\n' >&2
+    log_error "set the required environment variables and restart"
     sleep 30
     exit 1
 fi
+
+# Pre-increment the fail counter BEFORE exec.  exec replaces this process so
+# EXIT traps never fire — we must assume failure upfront.
+echo "$(( _fail_count + 1 ))" > "${_fail_count_file}"
 
 if [[ -z ${LSIO_NON_ROOT_USER:-} ]]; then
     exec s6-setuidgid "${mlat_client_user}" /usr/local/bin/mlat-client \

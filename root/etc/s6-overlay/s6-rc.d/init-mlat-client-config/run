@@ -2,6 +2,11 @@
 
 set -euo pipefail
 
+# ── Logging ───────────────────────────────────────────────────────────────────
+SVC_NAME="init-mlat-client-config"
+# shellcheck source=/usr/local/bin/log-functions.sh
+. /usr/local/bin/log-functions.sh
+
 mlat_client_user=${MLAT_CLIENT_USER:-root}
 mlat_client_config_dir=/config/mlat-client
 _s6_env=/run/s6/container_environment
@@ -31,7 +36,7 @@ auto_location="${MLAT_CLIENT_AUTO_LOCATION:-true}"
 auto_alt="${MLAT_CLIENT_AUTO_ALT:-true}"
 
 if [[ -z "${receiver_lat}" || -z "${receiver_lon}" ]] && [[ "${auto_location}" =~ ^(true|yes|1)$ ]]; then
-    printf '[init] MLAT_CLIENT_LAT/LON not set, attempting IP-based geolocation\n'
+    log_info "MLAT_CLIENT_LAT/LON not set, attempting IP-based geolocation"
     # NOTE: ip-api.com free tier only supports HTTP — HTTPS requires a paid plan.
     # This request sends only the container's public IP; no PII is transmitted.
     if geo_json=$(wget -qO- -T 5 \
@@ -46,26 +51,28 @@ if [[ -z "${receiver_lat}" || -z "${receiver_lon}" ]] && [[ "${auto_location}" =
             geo_country=$(printf '%s' "${geo_json}" | grep -o '"country":"[^"]*"' | cut -d'"' -f4)
             geo_isp=$(printf '%s' "${geo_json}" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4)
             geo_tz=$(printf '%s' "${geo_json}" | grep -o '"timezone":"[^"]*"' | cut -d'"' -f4)
-            printf '[init] auto-detected location via IP %s: %s, %s\n' "${geo_ip}" "${receiver_lat}" "${receiver_lon}"
-            printf '[init] approximate location: %s, %s, %s (tz: %s, isp: %s)\n' \
-                "${geo_city}" "${geo_region}" "${geo_country}" "${geo_tz}" "${geo_isp}"
+            log_info "public IP: ${geo_ip}"
+            log_info "auto-detected location: ${receiver_lat}, ${receiver_lon}"
+            log_info "approximate location: ${geo_city}, ${geo_region}, ${geo_country} (tz: ${geo_tz}, isp: ${geo_isp})"
+            # Persist public IP for downstream services
+            printf '%s' "${geo_ip}" > "${_s6_env}/PUBLIC_IP"
         else
-            printf '[init] WARNING: IP geolocation lookup failed (status: %s)\n' "${geo_status}" >&2
+            log_warn "IP geolocation failed (status: ${geo_status:-unknown})"
         fi
     else
-        printf '[init] WARNING: IP geolocation request failed (network error or timeout)\n' >&2
+        log_warn "IP geolocation request failed -- network may be unavailable"
     fi
 elif [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]]; then
-    printf '[init] using explicit location: lat=%s, lon=%s, alt=%s\n' "${receiver_lat}" "${receiver_lon}" "${receiver_alt:-unset}"
+    log_info "using explicit location: lat=${receiver_lat}, lon=${receiver_lon}, alt=${receiver_alt:-unset}"
 else
-    printf '[init] WARNING: auto-location disabled and MLAT_CLIENT_LAT/LON not set\n' >&2
+    log_warn "auto-location disabled and MLAT_CLIENT_LAT/LON not set"
 fi
 
 # --- Auto-altitude detection ---
 # Resolve ground elevation from lat/lon when altitude is not explicitly set.
 # Works with both auto-detected and explicitly provided coordinates.
 if [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]] && [[ -z "${receiver_alt}" ]] && [[ "${auto_alt}" =~ ^(true|yes|1)$ ]]; then
-    printf '[init] MLAT_CLIENT_ALT not set, querying terrain elevation for lat=%s, lon=%s\n' "${receiver_lat}" "${receiver_lon}"
+    log_info "MLAT_CLIENT_ALT not set, querying terrain elevation for lat=${receiver_lat}, lon=${receiver_lon}"
     if elev_json=$(wget -qO- -T 5 \
         "https://api.open-meteo.com/v1/elevation?latitude=${receiver_lat}&longitude=${receiver_lon}" 2>/dev/null); then
         elev_val=$(printf '%s' "${elev_json}" | grep -o '"elevation":\[[^]]*\]' | sed 's/.*\[//;s/\]//')
@@ -73,17 +80,17 @@ if [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]] && [[ -z "${receiver_alt}"
             # Round to nearest integer and append metres suffix
             elev_int=$(printf '%.0f' "${elev_val}")
             receiver_alt="${elev_int}m"
-            printf '[init] auto-detected altitude: %s (ground elevation from Open-Meteo)\n' "${receiver_alt}"
+            log_info "auto-detected altitude: ${receiver_alt} (ground elevation from Open-Meteo)"
         else
             receiver_alt="0m"
-            printf '[init] WARNING: elevation API returned unexpected data, defaulting altitude to %s\n' "${receiver_alt}" >&2
+            log_warn "elevation API returned unexpected data, defaulting altitude to ${receiver_alt}"
         fi
     else
         receiver_alt="0m"
-        printf '[init] WARNING: elevation lookup failed (network error or timeout), defaulting altitude to %s\n' "${receiver_alt}" >&2
+        log_warn "elevation lookup failed (network error or timeout), defaulting altitude to ${receiver_alt}"
     fi
 elif [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]] && [[ -z "${receiver_alt}" ]]; then
-    printf '[init] WARNING: auto-altitude disabled and MLAT_CLIENT_ALT not set\n' >&2
+    log_warn "auto-altitude disabled and MLAT_CLIENT_ALT not set"
 fi
 
 # Persist detected/resolved location in s6 environment for downstream services
@@ -97,4 +104,8 @@ if [[ -n "${receiver_alt}" ]]; then
     printf '%s' "${receiver_alt}" > "${_s6_env}/MLAT_CLIENT_ALT"
 fi
 
-printf '[init] mlat-client initialization complete\n'
+if [[ -n "${receiver_lat}" && -n "${receiver_lon}" ]]; then
+    log_info "receiver location: ${receiver_lat}, ${receiver_lon}"
+fi
+
+log_info "mlat-client initialization complete"
