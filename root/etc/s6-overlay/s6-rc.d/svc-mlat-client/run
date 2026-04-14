@@ -120,14 +120,22 @@ if [[ -n ${MLAT_CLIENT_RESULTS:-} ]] && ! has_mlat_opt "--results"; then
     mlat_client_args+=(--results "${MLAT_CLIENT_RESULTS}")
 fi
 
-# --uuid-file
-if [[ -n ${MLAT_CLIENT_UUID_FILE:-} ]] && ! has_mlat_opt "--uuid-file"; then
-    mlat_client_args+=(--uuid-file "${MLAT_CLIENT_UUID_FILE}")
+# --uuid-file (default: /config/feed-uuid-adsbexchange)
+mlat_client_uuid_file=${MLAT_CLIENT_UUID_FILE:-/config/feed-uuid-adsbexchange}
+mlat_client_uuid_value=""
+if [[ -n ${mlat_client_uuid_file} ]] && ! has_mlat_opt "--uuid-file"; then
+    if [[ -r "${mlat_client_uuid_file}" ]]; then
+        mlat_client_args+=(--uuid-file "${mlat_client_uuid_file}")
+        mlat_client_uuid_value=$(tr -d '[:space:]' < "${mlat_client_uuid_file}")
+    else
+        log_warn "UUID file not found: ${mlat_client_uuid_file}"
+    fi
 fi
 
-# --uuid
+# --uuid (inline value overrides file)
 if [[ -n ${MLAT_CLIENT_UUID:-} ]] && ! has_mlat_opt "--uuid"; then
     mlat_client_args+=(--uuid "${MLAT_CLIENT_UUID}")
+    mlat_client_uuid_value="${MLAT_CLIENT_UUID}"
 fi
 
 # --stats-json
@@ -197,6 +205,8 @@ else
     log_kv "lon" "${MLAT_CLIENT_LON:-unset}"
     log_kv "alt" "${MLAT_CLIENT_ALT:-unset}"
     log_kv "user-id" "${MLAT_CLIENT_USER_ID:-unset}"
+    log_kv "uuid" "${mlat_client_uuid_value:-unset}"
+    log_kv "uuid-file" "${mlat_client_uuid_file:-unset}"
     log_kv "AUTO_LOCATION" "${MLAT_CLIENT_AUTO_LOCATION:-true}"
     log_kv "ARGS(src)" "${mlat_client_args_source}"
     log_kv "effective_ARGS" "${mlat_client_args_rendered}"

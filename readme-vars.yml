@@ -34,7 +34,7 @@ opt_param_env_vars:
   - {env_var: "MLAT_CLIENT_USER", env_value: "root", desc: "Runtime user. Root is default."}
   - {env_var: "MLAT_CLIENT_RESULTS", env_value: "beast,connect,readsb:30104", desc: "Results output destination(s)"}
   - {env_var: "MLAT_CLIENT_UUID", env_value: "", desc: "UUID sent to the server"}
-  - {env_var: "MLAT_CLIENT_UUID_FILE", env_value: "", desc: "Path to UUID file"}
+  - {env_var: "MLAT_CLIENT_UUID_FILE", env_value: "/config/feed-uuid-adsbexchange", desc: "Path to UUID file (default: /config/feed-uuid-adsbexchange)"}
   - {env_var: "MLAT_CLIENT_STATS_JSON", env_value: "", desc: "Path for stats JSON output"}
   - {env_var: "MLAT_CLIENT_PRIVACY", env_value: "false", desc: "Hide receiver location on coverage maps"}
   - {env_var: "MLAT_CLIENT_NO_UDP", env_value: "false", desc: "Disable UDP transport for sync/mlat messages"}

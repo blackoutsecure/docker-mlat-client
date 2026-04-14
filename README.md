@@ -271,7 +271,7 @@ See [Balena documentation](https://docs.balena.io/) for details.
 | `-e MLAT_CLIENT_SERVER=` | `feed.adsbexchange.com:31090` | Multilateration server (host:port) |
 | `-e MLAT_CLIENT_RESULTS=` | *(none)* | Results output destination(s) |
 | `-e MLAT_CLIENT_UUID=` | *(none)* | UUID sent to the server |
-| `-e MLAT_CLIENT_UUID_FILE=` | *(none)* | Path to UUID file |
+| `-e MLAT_CLIENT_UUID_FILE=` | `/config/feed-uuid-adsbexchange` | Path to UUID file |
 | `-e MLAT_CLIENT_STATS_JSON=` | *(none)* | Path for stats JSON output |
 | `-e MLAT_CLIENT_PRIVACY=` | `false` | Hide receiver on coverage maps |
 | `-e MLAT_CLIENT_NO_UDP=` | `false` | Disable UDP transport |
@@ -411,8 +411,8 @@ Common environment variable combinations:
 -e MLAT_CLIENT_SERVER=mlat.myserver.com:31090
 -e MLAT_CLIENT_PRIVACY=true
 
-# With UUID file for persistent identity
--e MLAT_CLIENT_UUID_FILE=/config/mlat-client/uuid
+# With UUID file for persistent identity (default: /config/feed-uuid-adsbexchange)
+-e MLAT_CLIENT_UUID_FILE=/config/feed-uuid-adsbexchange
 
 # With statistics output
 -e MLAT_CLIENT_STATS_JSON=/config/mlat-client/stats.json
