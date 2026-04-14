@@ -17,11 +17,25 @@ build_metadata_path=/usr/local/share/mlat-client/build-metadata.env
 #
 # Note: the fail counter is pre-incremented BEFORE exec (since exec replaces
 # the process and EXIT traps never fire). We must assume failure upfront.
+# If the previous run lasted ≥ _MIN_HEALTHY_SECS, it was not a crash loop
+# and the counter is reset to avoid false-positive warnings.
 _fail_count_file="/run/mlat-client-fail-count"
+_start_ts_file="/run/mlat-client-start-ts"
+_MIN_HEALTHY_SECS=60
 _fail_count=0
 if [[ -f "${_fail_count_file}" ]]; then
     _fail_count=$(tr -d '[:space:]' < "${_fail_count_file}")
     _fail_count=${_fail_count:-0}
+fi
+# Reset fail counter if the previous run was long-lived (not a crash loop)
+if [[ ${_fail_count} -gt 0 && -f "${_start_ts_file}" ]]; then
+    _prev_start=$(tr -d '[:space:]' < "${_start_ts_file}")
+    _now=$(date +%s)
+    if [[ -n "${_prev_start}" ]] && (( _now - _prev_start >= _MIN_HEALTHY_SECS )); then
+        log_info "Previous run lasted $(( _now - _prev_start ))s (≥${_MIN_HEALTHY_SECS}s). Resetting fail counter."
+        _fail_count=0
+        rm -f "${_fail_count_file}"
+    fi
 fi
 _is_restart=false
 if [[ ${_fail_count} -gt 0 ]]; then
@@ -216,6 +230,10 @@ fi
 # Pre-increment the fail counter BEFORE exec.  exec replaces this process so
 # EXIT traps never fire — we must assume failure upfront.
 echo "$(( _fail_count + 1 ))" > "${_fail_count_file}"
+
+# Record start timestamp so the next invocation can distinguish a crash loop
+# (short-lived) from a healthy run that simply exited normally.
+date +%s > "${_start_ts_file}"
 
 if [[ -z ${LSIO_NON_ROOT_USER:-} ]]; then
     exec s6-setuidgid "${mlat_client_user}" /usr/local/bin/mlat-client \
