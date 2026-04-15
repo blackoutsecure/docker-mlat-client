@@ -189,9 +189,11 @@ services:
       - MLAT_CLIENT_AUTO_LOCATION=true
       - MLAT_CLIENT_USER_ID=myuser
       - MLAT_CLIENT_RESULTS=beast,connect,readsb:30104
+      - MLAT_CLIENT_UUID_FILE=/readsb-config/feed-uuid-adsbexchange
       - LOG_LEVEL=info
     volumes:
       - mlat-config:/config
+      - readsb-config:/readsb-config:ro
     tmpfs:
       - /tmp
       - /run:exec

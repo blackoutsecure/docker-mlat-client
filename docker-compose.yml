@@ -11,9 +11,11 @@ services:
       MLAT_CLIENT_AUTO_LOCATION: 'true'
       MLAT_CLIENT_USER_ID: 'changeme'
       MLAT_CLIENT_RESULTS: 'beast,connect,readsb:30104'
+      MLAT_CLIENT_UUID_FILE: '/readsb-config/feed-uuid-adsbexchange'
       LOG_LEVEL: 'info'              # debug | info | warn | error | fatal
     volumes:
       - mlat-config:/config
+      - readsb-config:/readsb-config:ro
     labels:
       io.balena.features.supervisor-api: '1'
       io.balena.features.balena-api: '1'
@@ -24,3 +26,5 @@ services:
 
 volumes:
   mlat-config:
+  readsb-config:
+    external: true
